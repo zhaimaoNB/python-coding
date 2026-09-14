@@ -1,136 +1,171 @@
 # python-coding
 
-本地编码助手 Harness。进一个目录敲 `coding`，当前目录就是工作区。
+本地编码助手。进入你的项目目录，敲 `coding`，它就能读文件、改代码、跑命令。
 
-把大模型当成 CPU，把对话历史当成内存，用一层薄运行时去调度工具、压缩上下文、拦住越界路径。不依赖 LangChain。
+用的是 DeepSeek。对话会记在当前项目里，关掉窗口下次还能接着聊。
 
-## 能力
+## 需要什么
 
-- ReAct 主循环：Think / Act / Observe
-- 工具：`read_file` / `write_file` / `edit_file` / `bash` / `list_dir` / `grep`，以及只读 `spawn_subagent`
-- 会话写入 `.claw/sessions/`，关窗口可续聊；`/compact` 折叠早期工具输出
-- `AGENTS.md` 是项目规矩；Skills 按需加载（包内置 → `~/.claw/skills/` → 工作区 `.claw/skills/`）
-- Plan Mode 只读锁、写操作确认、路径 jail、轮次上限
-- DeepSeek（OpenAI 兼容协议）、费用统计、本地 JSON Trace
-
-## 环境
-
-- Python 3.11+
-- 真实推理需要 [DeepSeek API Key](https://platform.deepseek.com/)
+- Python 3.11 或更高
+- Git
+- [DeepSeek API Key](https://platform.deepseek.com/)（真要让模型干活时才需要；跑测试不用）
 
 ## 安装
 
-在仓库根目录下：
+### 1. 从 GitHub 拉取
 
 ```bash
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS / Linux:
-# source .venv/bin/activate
+git clone https://github.com/zhaimaoNB/python-coding.git
+cd python-coding
+```
 
+### 2. 建虚拟环境并安装
+
+**Windows（CMD）：**
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e .
+```
+
+装好后，当前窗口里可以直接用 `coding` 命令。
+
+**Windows（PowerShell）：**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+```
+
+如果提示无法加载脚本，先执行：
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+**macOS / Linux：**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+想一起装测试依赖，把最后一步改成：
+
+```bash
 pip install -e ".[dev]"
 ```
 
-## 测试
+> 以后每次用，先进入 `python-coding` 目录，再激活 `.venv`。没激活的话，系统可能找不到 `coding` 命令。
 
-```bash
-pytest -q
+### 3. 配置密钥
+
+在**你要改的那个项目目录**里建 `.env`（不是必须放在本仓库里）：
+
+```
+DEEPSEEK_API_KEY=sk-你的密钥
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 ```
 
-测试全部走 Mock Provider，**不需要** API Key。
+也可以启动后按提示输入，校验通过会自动写入该目录的 `.env`。对话里用 `/key` 可以更换。
 
-## 启动
+## 使用
 
-```bash
+`coding` 把**当前目录**当成工作区。先 `cd` 到你的项目，再启动。
+
+```bat
 cd C:\你的项目
 coding
 ```
 
-也可以：`python -m python_claw_agent`。短命令 `coding` 需要已执行过 `pip install -e .`。
+出现 `you>` 后，直接输入任务，例如：`帮我看看这个项目怎么启动`。
 
-提示符是 `you>`。斜杠命令：`/help` `/cost` `/clear` `/compact` `/key` `/plan` `/yes` `/turns` `/verbose` `/exit`。要用别的目录时再加 `--dir`。
-
-默认是普通对话。大改之前可加 `--plan` 或敲 `/plan`：此时只能读代码并写 `PLAN.md` / `TODO.md`，`/plan off` 之后才允许改文件。
-
-写文件、`edit_file`、`bash` 默认会先问。预览是路径和内容摘要；同一轮多个写操作只问一次（`y` 全过 / `n` 全拒）。想少打断可加 `--yes`，或对话里 `/yes`。
-
-密钥写在工作区 `.env`（不会覆盖已经存在的环境变量）：
-
-```
-DEEPSEEK_API_KEY=sk-...
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-```
-
-交互启动时如果还没有密钥，会提示隐藏输入；校验通过后写入工作区 `.env`。REPL 里可用 `/key` 更换。一次性任务（`--prompt`）不会交互问密钥，请事先配好环境变量 / `.env`，或加 `--mock`。
-
-默认少打内部日志；需要 Tracker / Trace 时加 `--verbose` 或 `/verbose`。助手正文会边生成边打印；出现工具调用时停住流式，再走确认与执行。
-
-一次性任务：
+也可以：
 
 ```bash
-cd workspace
-python -m python_claw_agent --prompt "读取 hello.txt 并总结" --mock
+python -m python_claw_agent
 ```
 
-## 参数
+指定别的目录：
+
+```bash
+coding --dir C:\你的项目
+```
+
+一次性任务（跑完就退出）：
+
+```bash
+coding --prompt "读取 README.md 并总结"
+```
+
+不调用真实 API、只走模拟（适合试命令）：
+
+```bash
+coding --prompt "读取 hello.txt" --mock
+```
+
+## 常用操作
+
+| 你想做的事 | 怎么做 |
+|---|---|
+| 查看命令 | `/help` |
+| 先规划、先不改代码 | 启动加 `--plan`，或对话里 `/plan` |
+| 批准开始改代码 | `/plan off` |
+| 写文件 / 跑命令不要每次问 | 启动加 `--yes`，或对话里 `/yes` |
+| 改密钥 | `/key` |
+| 压缩过长的历史 | `/compact` |
+| 清空会话 | `/clear` |
+| 看费用 | `/cost` |
+| 退出 | `/exit` 或 `Ctrl+C` |
+
+默认改文件、跑命令前会问你一声：`y` 同意，`n` 拒绝。同一轮多个写操作只问一次。
+
+大改之前建议先 `/plan`：这时只能读代码，并写 `PLAN.md` / `TODO.md`。看完方案再 `/plan off`。
+
+## 测试（可选）
+
+```bash
+pip install -e ".[dev]"
+pytest -q
+```
+
+测试全部走模拟接口，**不需要** API Key。
+
+## 它能做什么
+
+- 读、写、改文件，列目录，搜索代码，执行命令
+- 会话保存在项目下的 `.claw/sessions/`，关掉还能续
+- 项目根目录的 `AGENTS.md` 会当成这个项目的规矩
+- 技能按需加载：包内置 → 用户目录 `~/.claw/skills/`（Windows 是 `%USERPROFILE%\.claw\skills\`）→ 当前项目 `.claw/skills/`
+- 有路径限制：默认不能改工作区外面的文件
+
+## 参数和环境变量
 
 | 参数 | 含义 |
 |------|------|
-| `--prompt` | 一次性任务；省略则进入多轮对话 |
+| `--prompt` | 一次性任务；不写则进入多轮对话 |
 | `--dir` | 工作区，默认当前目录 |
 | `--session` | 会话 ID |
 | `--model` | 默认 `deepseek-chat` |
-| `--mock` | 强制 Mock |
-| `--thinking` | 每轮先不带工具推理一次 |
-| `--plan` | 开启只读 Plan Mode |
-| `--yes` | 写文件/bash 不询问 |
+| `--mock` | 不调用真实 API |
+| `--plan` | 只读规划模式 |
+| `--yes` | 写文件 / 跑命令不再询问 |
 | `--max-turns` | 每条消息工具往返上限，默认 20 |
-| `--verbose` | 打印 Tracker、Registry、Trace 等详细日志 |
+| `--verbose` | 打印更详细的内部日志 |
 
-## 环境变量
-
-| 变量 | 说明 |
-|------|------|
-| `DEEPSEEK_API_KEY` | DeepSeek 密钥（也可写在工作区 `.env`） |
+| 环境变量 | 说明 |
+|----------|------|
+| `DEEPSEEK_API_KEY` | DeepSeek 密钥 |
 | `DEEPSEEK_BASE_URL` | 可选，默认 `https://api.deepseek.com` |
 
-## Skills
+已经存在的环境变量，不会被 `.env` 覆盖。
 
-系统提示只带技能目录（名字 + description）。当前用户任务命中 `triggers` 或技能名时，才加载对应 `SKILL.md` 正文。
+## 注意
 
-查找顺序：包内置 → `%USERPROFILE%\.claw\skills\`（或 `~/.claw/skills/`）→ 工作区 `.claw/skills/`，同名后者覆盖。内置 `git-commit`、`pytest-fix`。新技能格式：
-
-```yaml
----
-name: your-skill
-description: 一句话说明何时用
-triggers: 关键词1, 关键词2
----
-正文 SOP
-```
-
-## 目录结构
-
-```
-python-coding/
-  src/python_claw_agent/
-    schema.py
-    cli.py
-    engine/          # 主循环、权限、Reminder
-    provider/        # DeepSeek + Mock
-    tools/           # 文件、bash、grep、subagent
-    context/         # Session、Composer、Compactor、Skills
-    observability/   # Cost、Trace
-    skills/          # 内置 git-commit / pytest-fix
-  tests/
-  workspace/         # 可选演示区
-```
-
-## 边界
-
-- 上下文压缩按字符数（约 4 万字符触发）；会话文件超过约 256KB 时启动会提示 `/compact` 或 `/clear`
-- Trace 写在 `.claw/traces/`，只保留最近 20 份
-- Windows 无 Git Bash 时，`bash` 走 PowerShell
-- bash 工作区限制是启发式拦截（`..` / `~` / 区外绝对路径），不是完整沙箱
-- 无 MCP
+- Windows 如果没有 Git Bash，命令会走 PowerShell
+- 工作区限制是启发式的，不是完整沙箱
+- 会话太长时，启动会提示你 `/compact` 或 `/clear`
+- 目前没有 MCP
